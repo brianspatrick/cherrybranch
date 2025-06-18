@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<NoWarn>NETSDK1206;CA1416;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS1998;CS8629;NU1701</NoWarn>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<NuGetAudit>false</NuGetAudit>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Appeaser.Microsoft.ApplicationInsights.AspNetCore" Version="0.4.1" />
+		<PackageReference Include="DevExpress.Document.Processor" Version="24.1.6" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="RestSharp" Version="110.2.0" />
+		<PackageReference Include="RestSharp.Serializers.NewtonsoftJson" Version="110.2.0" />
+	</ItemGroup>
+	
+	<ItemGroup> 
+    	<FrameworkReference Include="Microsoft.AspNetCore.App" />
+  	</ItemGroup>
+
+</Project>
