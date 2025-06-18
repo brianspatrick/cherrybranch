@@ -1,0 +1,300 @@
+﻿@page "/commitlist"
+@using Lucet.CherryBranch.DataModel
+@using API = Lucet.CherryBranch.API.DataModel
+@inject AppState AppState
+
+<PageTitle>Commit List</PageTitle>
+
+@if (showSpinner)
+{
+    <div id="ActivityIndicator1" class="activityIndicatorOn">
+        <div id="Spinner1" class="spinnerContainer">
+            <div class="spinner"></div>
+        </div>
+    </div>
+}
+
+@if (!loading)
+{
+    <h1>Commit List</h1>
+
+    <div>
+        <table>
+            <tr>
+                <td>Source Branch:</td>
+                <td>
+                    <select @onchange="OnSourceBranchChanged">
+                        @foreach (var item in sourceBranchList)
+                        {
+                            @if (!string.IsNullOrEmpty(sourceBranchName) && sourceBranchName == item.Name)
+                            {
+                                <option selected value="@(item.Name)">@(item.Name)</option>
+                            }
+                            else
+                            {
+                                <option value="@(item.Name)">@(item.Name)</option>
+                            }
+                        }
+                    </select>
+                </td>
+                <td style="padding-left: 10px;">Target Branch:</td>
+                <td>Target Branch:</td>
+                <td>
+                    <select @onchange="OnTargetBranchChanged">
+                        @foreach (var item in targetBranchList)
+                        {
+                            <option value="@(item.Name)">@(item.Name)</option>
+                        }
+                    </select>
+                </td>
+                <td style="padding-left: 10px;">New Branch Name:</td>
+                <td>
+                    <input type="text" class="form-input ps-0" @ref="newBranchNameRef" value="@newBranchName" @onblur="OnBranchNameBlur" @oninput="OnBranchNameChanged" />
+                </td>
+
+                <td style="padding-left: 10px; white-space: nowrap;">
+                    <button class="@(actionButtonEnabled ? "formButton" : "formButtonDisabled")" @onclick="PerformCherryPick">Perform Cherry-Pick</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Selected</th>
+                <th>Date</th>
+                <th>User</th>
+                <th>Comment</th>
+                <th>Id</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in commitList)
+            {
+                <tr>
+                    <td>
+                        <input type="checkbox" checked="@(item.Selected)" class="form-check-input ps-0" @onchange="@((e) => OnCommitSelected(e, item.CommitId))" />
+                    </td>
+                    <td style="white-space: nowrap;">@item.Date</td>
+                    <td style="white-space: nowrap;">@item.Email</td>
+                    <td style="width: 90%">@item.Comment</td>
+                    <td style="white-space: nowrap;">@item.CommitId</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<div id="MessageBox" class="messageBoxContainer" style="display: @(displayMessageBox ? "block" : "none");">
+    <div class="messageBoxContent">
+        <table style="width: 100%;">
+            <tr>
+                <td class="formTitle"><label>@(messageBoxTitle)</label></td>
+            </tr>
+            <tr><td style="height: 4px;"></td></tr>
+            <tr>
+                <td>
+                    <div id="MessageBoxText" style="text-align: center; font-weight: bold;">@(messageBoxText)</div>
+                </td>
+            </tr>
+            <tr><td style="height: 4px;"></td></tr>
+            <tr>
+                <td class="formButtonFooterSeparator">
+                    <button id="btnOK" class="formButton" @onclick="CloseMessageBox">OK</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+@code {
+    private bool displayMessageBox = false;
+    private string messageBoxTitle = string.Empty;
+    private string messageBoxText = string.Empty;
+    private bool actionButtonEnabled = false;
+    private string? newBranchName = string.Empty;
+    private string? sourceBranchId = string.Empty;
+    private string? sourceBranchName = string.Empty;
+    private string? targetBranchId = string.Empty;
+    private string? targetBranchName = string.Empty;
+    private List<string> targetNames = new List<string> { "master", "DEV", "QA", "UAT", "PROD" };
+    private List<BranchEntity> targetBranchList = [];
+    private List<BranchEntity> sourceBranchList = [];
+    private List<CommitEntity> commitList = [];
+    private bool loading = true;
+
+    private bool showSpinner = true;
+
+    private ElementReference newBranchNameRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Task.Delay(1000);
+
+            await RefreshBranchList();
+
+            if (!string.IsNullOrEmpty(sourceBranchName))
+            {
+                await RefreshCommitList();
+            }
+
+            loading = false;
+
+            StateHasChanged();
+
+            await base.OnAfterRenderAsync(firstRender);
+        }
+    }
+
+    private async Task RefreshBranchList()
+    {
+        newBranchName = string.Empty;
+        targetBranchName = string.Empty;
+        targetBranchList.Clear();
+        sourceBranchList.Clear();
+
+        var branchList = await AppState.GetBranchList();
+
+        foreach (var item in branchList)
+        {
+            if (targetNames.Contains(item.Name))
+            {
+                item.Selected = false;
+                targetBranchList.Add(item);
+            }
+
+            sourceBranchList.Add(item);
+        }
+
+        if (sourceBranchList.Count > 0 && string.IsNullOrEmpty(sourceBranchName))
+        {
+            sourceBranchId = sourceBranchList[0].Id;
+            sourceBranchName = sourceBranchList[0].Name;
+        }
+        else if (sourceBranchList.Count > 0 && !string.IsNullOrEmpty(sourceBranchName))
+        {
+            var source = sourceBranchList.Find(i => i.Name == sourceBranchName);
+            if (source == null)
+            {
+                sourceBranchId = sourceBranchList[0].Id;
+                sourceBranchName = sourceBranchList[0].Name;
+                DisplayMessageBox("Operation Failed...", "Unable to Cherry-Pick the selected Commits. Please check Azure DevOps for Conflicts.");
+            }
+        }
+
+        if (targetBranchList.Count > 0)
+        {
+            targetBranchId = targetBranchList[0].Id;
+            targetBranchName = targetBranchList[0].Name;
+        }
+    }
+
+    private async Task RefreshCommitList()
+    {
+        if (!string.IsNullOrEmpty(sourceBranchName))
+        {
+            ShowActivityIndicator();
+
+            commitList = await AppState.GetCommitList(sourceBranchName);
+        }
+
+        HideActivityIndicator();
+    }
+
+    private async Task OnCommitSelected(ChangeEventArgs e, string commitId)
+    {
+        await Task.Run(() =>
+        {
+            bool selected = e.Value == null ? false : (bool)e.Value;
+            var item = commitList.Find(i => i.CommitId == commitId);
+
+            if (item != null)
+            {
+                item.Selected = selected;
+            }
+        });
+
+        actionButtonEnabled = !string.IsNullOrEmpty(newBranchName) && commitList.FindAll(i => i.Selected).Count > 0;
+    }
+
+    private void OnBranchNameBlur()
+    {
+        actionButtonEnabled = !string.IsNullOrEmpty(sourceBranchName) && commitList.FindAll(i => i.Selected).Count > 0;
+    }
+
+    private void OnBranchNameChanged(ChangeEventArgs e)
+    {
+        newBranchName = e.Value?.ToString();
+        actionButtonEnabled = !string.IsNullOrEmpty(sourceBranchName) && !string.IsNullOrEmpty(newBranchName) && commitList.FindAll(i => i.Selected).Count > 0;
+    }
+
+    private async Task OnSourceBranchChanged(ChangeEventArgs e)
+    {
+        sourceBranchName = e.Value?.ToString();
+        await RefreshCommitList();
+    }
+
+    private void OnTargetBranchChanged(ChangeEventArgs e)
+    {
+        targetBranchName = e.Value?.ToString();
+        var target = targetBranchList.Find(i => i.Name == targetBranchName);
+
+        if (target != null)
+        {
+            targetBranchId = target.Id;
+        }
+    }
+
+    private void ShowActivityIndicator()
+    {
+        showSpinner = true;
+    }
+
+    private void HideActivityIndicator()
+    {
+        showSpinner = false;
+    }
+
+    private void DisplayMessageBox(string title, string message)
+    {
+        messageBoxTitle = title;
+        messageBoxText = message;
+        displayMessageBox = true;
+    }
+
+    private void CloseMessageBox()
+    {
+        displayMessageBox = false;
+    }
+
+    private async Task PerformCherryPick()
+    {
+        if (!string.IsNullOrEmpty(targetBranchId) && !string.IsNullOrEmpty(targetBranchName) && !string.IsNullOrEmpty(newBranchName))
+        {
+            ShowActivityIndicator();
+
+            await AppState.APIService.RepoService.BranchAppend(targetBranchId, targetBranchName, newBranchName, commitList.FindAll(i => i.Selected));
+
+            sourceBranchName = newBranchName;
+
+            // This is a necessary delay to give ADO time to process the new Branch...
+            await Task.Delay(2000);
+
+            await RefreshBranchList();
+
+            await RefreshCommitList();
+
+            actionButtonEnabled = false;
+
+            HideActivityIndicator();
+        }
+    }
+}

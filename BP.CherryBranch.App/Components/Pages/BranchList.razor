@@ -1,0 +1,248 @@
+﻿@page "/branchlist"
+@using Lucet.CherryBranch.DataModel
+@using API = Lucet.CherryBranch.API.DataModel
+@inject AppState AppState
+
+<PageTitle>Branch List</PageTitle>
+
+@if (showSpinner)
+{
+    <div id="ActivityIndicator1" class="activityIndicatorOn">
+        <div id="Spinner1" class="spinnerContainer">
+            <div class="spinner"></div>
+        </div>
+    </div>
+}
+
+@if (!loading)
+{
+    <h1>Branch List</h1>
+
+    <div>
+        <table>
+            <tr>
+                <td>Target Branch:</td>
+                <td>
+                    <select @onchange="OnTargetBranchChanged">
+                        @foreach (var item in targetBranchList)
+                        {
+                            <option value="@(item.Name)">@(item.Name)</option>
+                        }
+                    </select>
+                </td>
+                <td style="padding-left: 10px;">New Branch Name:</td>
+                <td>
+                    <input type="text" class="form-input ps-0" @ref="newBranchNameRef" value="@newBranchName" @onblur="OnBranchNameBlur" @oninput="OnBranchNameChanged" />
+                </td>
+
+                <td style="padding-left: 10px; white-space: nowrap;">
+                    <button class="@(actionButtonEnabled ? "formButton" : "formButtonDisabled")" @onclick="PerformCherryPick">Perform Cherry-Pick</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Selected</th>
+                <th>UserName</th>
+                <th>Branch</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in sourceBranchList)
+            {
+                <tr>
+                    <td>
+                        <input type="checkbox" checked="@(item.Selected)" class="form-check-input ps-0" @onchange="@((e) => OnBranchSelected(e, item.Id))" />
+                    </td>
+                    <td>@item.UserName</td>
+                    <td>@item.Name</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<div id="MessageBox" class="messageBoxContainer" style="display: @(displayMessageBox ? "block" : "none");">
+    <div class="messageBoxContent">
+        <table style="width: 100%;">
+            <tr>
+                <td class="formTitle"><label>@(messageBoxTitle)</label></td>
+            </tr>
+            <tr><td style="height: 4px;"></td></tr>
+            <tr>
+                <td>
+                    <div id="MessageBoxText" style="text-align: center; font-weight: bold;">@(messageBoxText)</div>
+                </td>
+            </tr>
+            <tr><td style="height: 4px;"></td></tr>
+            <tr>
+                <td class="formButtonFooterSeparator">
+                    <button id="btnOK" class="formButton" @onclick="CloseMessageBox">OK</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+@code {
+    private bool displayMessageBox = false;
+    private string messageBoxTitle = string.Empty;
+    private string messageBoxText = string.Empty;
+    private bool actionButtonEnabled = false;
+    private string? newBranchName = string.Empty;
+    private string? targetBranchId = string.Empty;
+    private string? targetBranchName = string.Empty;
+    private List<string> targetNames = new List<string> { "master", "DEV", "QA", "UAT", "PROD" };
+    private List<BranchEntity> targetBranchList = [];
+    private List<BranchEntity> sourceBranchList = [];
+    private bool loading = true;
+
+    private bool showSpinner = true;
+
+    private ElementReference newBranchNameRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await RefreshData();
+
+            StateHasChanged();
+
+            await base.OnAfterRenderAsync(firstRender);
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        loading = true;
+
+        await Task.Delay(1000);
+
+        targetBranchList.Clear();
+        sourceBranchList.Clear();
+
+        var branchList = await AppState.GetBranchList();
+
+        foreach (var item in branchList)
+        {
+            if (targetNames.Contains(item.Name))
+            {
+                item.Selected = false;
+                targetBranchList.Add(item);
+            }
+            else
+            {
+                sourceBranchList.Add(item);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(newBranchName))
+        {
+            var source = sourceBranchList.Find(i => i.Name == newBranchName);
+            if (source == null)
+            {
+                DisplayMessageBox("Operation Failed...", "Unable to Cherry-Pick the selected Commits. Please check Azure DevOps for Conflicts.");
+            }
+        }
+
+        newBranchName = string.Empty;
+
+        if (targetBranchList.Count > 0)
+        {
+            targetBranchId = targetBranchList[0].Id;
+            targetBranchName = targetBranchList[0].Name;
+        }
+
+        HideActivityIndicator();
+        loading = false;
+    }
+
+    private async Task OnBranchSelected(ChangeEventArgs e, string branchId)
+    {
+        await Task.Run(() =>
+        {
+            bool selected = e.Value == null ? false : (bool)e.Value;
+            var item = sourceBranchList.Find(i => i.Id == branchId);
+
+            if (item != null)
+            {
+                item.Selected = selected;
+            }
+
+        });
+
+        actionButtonEnabled = !string.IsNullOrEmpty(newBranchName) && sourceBranchList.FindAll(i => i.Selected).Count > 0;
+    }
+
+    private void OnBranchNameBlur()
+    {
+        actionButtonEnabled = !string.IsNullOrEmpty(newBranchName) && sourceBranchList.FindAll(i => i.Selected).Count > 0;
+    }
+
+    private void OnBranchNameChanged(ChangeEventArgs e)
+    {
+        newBranchName = e.Value?.ToString();
+        actionButtonEnabled = !string.IsNullOrEmpty(newBranchName) && sourceBranchList.FindAll(i => i.Selected).Count > 0;
+    }
+
+    private void OnTargetBranchChanged(ChangeEventArgs e)
+    {
+        targetBranchName = e.Value?.ToString();
+        var target = targetBranchList.Find(i => i.Name == targetBranchName);
+
+        if (target != null)
+        {
+            targetBranchId = target.Id;
+        }
+    }
+
+    private void ShowActivityIndicator()
+    {
+        showSpinner = true;
+    }
+
+    private void HideActivityIndicator()
+    {
+        showSpinner = false;
+    }
+
+    private void DisplayMessageBox(string title, string message)
+    {
+        messageBoxTitle = title;
+        messageBoxText = message;
+        displayMessageBox = true;
+    }
+
+    private void CloseMessageBox()
+    {
+        displayMessageBox = false;
+    }
+
+    private async Task PerformCherryPick()
+    {
+        if (!string.IsNullOrEmpty(targetBranchId) && !string.IsNullOrEmpty(targetBranchName) && !string.IsNullOrEmpty(newBranchName))
+        {
+            ShowActivityIndicator();
+
+            await AppState.APIService.RepoService.BranchAppend(targetBranchId, targetBranchName, newBranchName, sourceBranchList.FindAll(i => i.Selected));
+
+            // This is a necessary delay to give ADO time to process the new Branch...
+            await Task.Delay(2000);
+
+            await RefreshData();
+
+            actionButtonEnabled = false;
+
+            HideActivityIndicator();
+        }
+    }
+}

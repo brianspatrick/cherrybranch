@@ -1,0 +1,336 @@
+﻿@page "/settings"
+@using Lucet.CherryBranch.DataModel
+@using API = Lucet.CherryBranch.API.DataModel
+@inject AppState AppState
+
+<PageTitle>Settings</PageTitle>
+
+@if (showSpinner)
+{
+    <div id="ActivityIndicator1" class="activityIndicatorOn">
+        <div id="Spinner1" class="spinnerContainer">
+            <div class="spinner"></div>
+        </div>
+    </div>
+}
+
+@if (!loading)
+{
+    <h1>Settings</h1>
+
+    <div>
+        <table cellpadding="2" cellspacing="2">
+            <tr>
+                <td style="padding-left: 10px;">Repo Type:</td>
+                <td><b>@(repositoryType)</b></td>
+            </tr>
+
+            <tr>
+                <td style="padding-left: 10px;">Base Address:</td>
+                <td>
+                    <input type="text" class="form-input ps-0" style="width: 600px;" @ref="baseAddressRef" value="@baseAddress" @onblur="OnBaseAddressBlur" @oninput="OnBaseAddressChanged" />
+                </td>
+            </tr>
+
+            <tr>
+                <td style="padding-left: 10px;">Repo Id:</td>
+                <td>
+                    <input type="text" class="form-input ps-0" style="width: 400px;" @ref="repositoryIdRef" value="@repositoryId" @onblur="OnRepositoryIdBlur" @oninput="OnRepositoryIdChanged" />
+                </td>
+            </tr>
+
+            <tr>
+                <td style="padding-left: 10px;">Repo Prefix:</td>
+                <td>
+                    <input type="text" class="form-input ps-0" @ref="repositoryPrefixRef" value="@repositoryPrefix" @onblur="OnRepositoryPrefixBlur" @oninput="OnRepositoryPrefixChanged" />
+                </td>
+            </tr>
+
+            <tr>
+                <td style="padding-left: 10px;">Authorization Token:</td>
+                <td>
+                    <input type="text" class="form-input ps-0" style="width: 800px;" @ref="authorizationTokenRef" value="@authorizationToken" @onblur="OnAuthorizationTokenBlur" @oninput="OnAuthorizationTokenChanged" />
+                </td>
+            </tr>
+
+            <tr><td style="padding-top: 12px;" colspan="2"></td></tr>
+
+            <tr>
+                <td style="padding-left: 10px;" colspan="2"><b>Methods:</b></td>
+            </tr>
+
+            <tr>
+                <td style="padding-left: 35px;" colspan="2">
+                    <table cellpadding="2" cellspacing="2">
+                        <tr>
+                            <td style="padding-left: 10px;">GetBranchList:</td>
+                            <td>
+                                <input type="text" class="form-input ps-0" style="width: 700px;" @ref="getBranchListRef" value="@getBranchList" @onblur="OnGetBranchListBlur" @oninput="OnGetBranchListChanged" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding-left: 10px;">GetCommitList:</td>
+                            <td>
+                                <input type="text" class="form-input ps-0" style="width: 700px;" @ref="getCommitListRef" value="@getCommitList" @onblur="OnGetCommitListBlur" @oninput="OnGetCommitListChanged" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding-left: 10px;">BranchDelete:</td>
+                            <td>
+                                <input type="text" class="form-input ps-0" style="width: 700px;" @ref="branchDeleteRef" value="@branchDelete" @onblur="OnBranchDeleteBlur" @oninput="OnBranchDeleteChanged" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding-left: 10px;">BranchCreate:</td>
+                            <td>
+                                <input type="text" class="form-input ps-0" style="width: 700px;" @ref="branchCreateRef" value="@branchCreate" @onblur="OnBranchCreateBlur" @oninput="OnBranchCreateChanged" />
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+
+            <tr><td style="padding-top: 12px;" colspan="2"></td></tr>
+
+            <tr>
+                <td style="padding-left: 10px;" colspan="2">
+                    <button class="@(actionButtonEnabled ? "formButton" : "formButtonDisabled")" @onclick="PerformSave">Save Settings</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+}
+
+<div id="MessageBox" class="messageBoxContainer" style="display: @(displayMessageBox ? "block" : "none");">
+    <div class="messageBoxContent">
+        <table style="width: 100%;">
+            <tr>
+                <td class="formTitle"><label>@(messageBoxTitle)</label></td>
+            </tr>
+            <tr><td style="height: 4px;"></td></tr>
+            <tr>
+                <td>
+                    <div id="MessageBoxText" style="text-align: center; font-weight: bold;">@(messageBoxText)</div>
+                </td>
+            </tr>
+            <tr><td style="height: 4px;"></td></tr>
+            <tr>
+                <td class="formButtonFooterSeparator">
+                    <button id="btnOK" class="formButton" @onclick="CloseMessageBox">OK</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+@code {
+    private bool loading = true;
+
+    private bool displayMessageBox = false;
+    private string messageBoxTitle = string.Empty;
+    private string messageBoxText = string.Empty;
+    private bool actionButtonEnabled = false;
+
+    private string? repositoryType = "Azure";
+    private string? baseAddress = string.Empty;
+    private string? repositoryId = string.Empty;
+    private string? repositoryPrefix = string.Empty;
+    private string? authorizationToken = string.Empty;
+
+    private string? getBranchList = string.Empty;
+    private string? getCommitList = string.Empty;
+    private string? branchDelete = string.Empty;
+    private string? branchCreate = string.Empty;
+
+    private bool showSpinner = true;
+
+    private ElementReference baseAddressRef;
+    private ElementReference repositoryIdRef;
+    private ElementReference repositoryPrefixRef;
+    private ElementReference authorizationTokenRef;
+
+    private ElementReference getBranchListRef;
+    private ElementReference getCommitListRef;
+    private ElementReference branchDeleteRef;
+    private ElementReference branchCreateRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await RefreshData();
+
+            StateHasChanged();
+
+            await base.OnAfterRenderAsync(firstRender);
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        loading = true;
+
+        var entity = await AppState.GetSettings();
+
+        if (entity != null)
+        {
+            repositoryType = entity.RepositoryType;
+            baseAddress = entity.BaseAddress;
+            repositoryId = entity.RepositoryId;
+            repositoryPrefix = entity.RepositoryPrefix;
+            authorizationToken = entity.AuthorizationToken;
+            getBranchList = entity.GetBranchListUri;
+            getCommitList = entity.GetCommitListUri;
+            branchDelete = entity.BranchDeleteUri;
+            branchCreate = entity.BranchCreateUri;
+        }
+
+        await Task.Delay(1000);
+
+        HideActivityIndicator();
+        loading = false;
+    }
+
+    private void SetActionButtonStatus()
+    {
+        actionButtonEnabled = false;
+
+        if (string.IsNullOrEmpty(repositoryType)) return;
+        if (string.IsNullOrEmpty(baseAddress)) return;
+        if (string.IsNullOrEmpty(repositoryId)) return;
+        if (string.IsNullOrEmpty(repositoryPrefix)) return;
+        if (string.IsNullOrEmpty(authorizationToken)) return;
+        if (string.IsNullOrEmpty(getBranchList)) return;
+        if (string.IsNullOrEmpty(getCommitList)) return;
+        if (string.IsNullOrEmpty(branchDelete)) return;
+        if (string.IsNullOrEmpty(branchCreate)) return;
+
+        actionButtonEnabled = true;
+    }
+
+    private void OnRepositoryIdBlur()
+    {
+        SetActionButtonStatus();
+    }
+
+    private void OnRepositoryIdChanged(ChangeEventArgs e)
+    {
+        repositoryId = e.Value?.ToString();
+        SetActionButtonStatus();
+    }
+
+    private void OnRepositoryPrefixBlur()
+    {
+        SetActionButtonStatus();
+    }
+
+    private void OnRepositoryPrefixChanged(ChangeEventArgs e)
+    {
+        repositoryPrefix = e.Value?.ToString();
+        SetActionButtonStatus();
+    }
+
+    private void OnAuthorizationTokenBlur()
+    {
+        SetActionButtonStatus();
+    }
+
+    private void OnAuthorizationTokenChanged(ChangeEventArgs e)
+    {
+        authorizationToken = e.Value?.ToString();
+        SetActionButtonStatus();
+    }
+
+    private void OnBaseAddressBlur()
+    {
+        SetActionButtonStatus();
+    }
+
+    private void OnBaseAddressChanged(ChangeEventArgs e)
+    {
+        baseAddress = e.Value?.ToString();
+        SetActionButtonStatus();
+    }
+
+    private void OnGetBranchListBlur()
+    {
+        SetActionButtonStatus();
+    }
+
+    private void OnGetBranchListChanged(ChangeEventArgs e)
+    {
+        getBranchList = e.Value?.ToString();
+        SetActionButtonStatus();
+    }
+
+    private void OnGetCommitListBlur()
+    {
+        SetActionButtonStatus();
+    }
+
+    private void OnGetCommitListChanged(ChangeEventArgs e)
+    {
+        getCommitList = e.Value?.ToString();
+        SetActionButtonStatus();
+    }
+
+    private void OnBranchDeleteBlur()
+    {
+        SetActionButtonStatus();
+    }
+
+    private void OnBranchDeleteChanged(ChangeEventArgs e)
+    {
+        branchDelete = e.Value?.ToString();
+        SetActionButtonStatus();
+    }
+
+    private void OnBranchCreateBlur()
+    {
+        SetActionButtonStatus();
+    }
+
+    private void OnBranchCreateChanged(ChangeEventArgs e)
+    {
+        branchCreate = e.Value?.ToString();
+        SetActionButtonStatus();
+    }
+
+    private void ShowActivityIndicator()
+    {
+        showSpinner = true;
+    }
+
+    private void HideActivityIndicator()
+    {
+        showSpinner = false;
+    }
+
+    private void DisplayMessageBox(string title, string message)
+    {
+        messageBoxTitle = title;
+        messageBoxText = message;
+        displayMessageBox = true;
+    }
+
+    private void CloseMessageBox()
+    {
+        displayMessageBox = false;
+    }
+
+    private async Task PerformSave()
+    {
+        ShowActivityIndicator();
+
+        await Task.Delay(2000);
+
+        actionButtonEnabled = false;
+
+        HideActivityIndicator();
+    }
+}
